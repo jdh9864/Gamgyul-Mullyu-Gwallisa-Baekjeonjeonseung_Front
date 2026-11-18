@@ -1,497 +1,664 @@
-// src/pages/ReviewPage.tsx
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { examApi } from '../api/examApi';
+import {
+  bulkUpdateHistoriesApi,
+  extractErrorMessage,
+  getHistoriesApi,
+  updateHistoryApi,
+} from '../api/client';
+import type { DifficultyLevel, HistoryItem } from '../types/history';
 
-// ==========================================
-// 1. 타입 정의
-// ==========================================
-export type GenerationType = 'CHAPTER' | 'ALL_PROBLEMS';
-
-export interface DomainItem {
-  domainId: string;
-  majorCategory: string;
-  domainName: string; 
+interface NoteDraft {
+  userDifficulty: string;
+  reviewNotes: string;
 }
 
-export interface ReviewProblem {
-  problemId: string;
-  domainId: string;
-  problemNumber: number;
-  questionType: string;
-  title: string;
-  content: string;
-  referenceAnswer: string;
-  userAnswer: string;
-  isCorrect: boolean;
-  aiFeedback: string | Record<string, unknown>; 
+const DIFFICULTIES: readonly DifficultyLevel[] = ['쉬움', '보통', '어려움'];
+
+function formatKstDate(isoString: string): string {
+  if (!isoString) return '-';
+  const hasZone = /[Zz]|[+-]\d{2}:?\d{2}$/.test(isoString);
+  const date = new Date(hasZone ? isoString : `${isoString}Z`);
+  if (Number.isNaN(date.getTime())) return isoString;
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 }
 
-export interface ProblemReviewResponse {
-  requestedDomainId: string;
-  isFallbackToAll: boolean;
-  problems: ReviewProblem[];
+function difficultyBadgeStyle(diff: string): string {
+  switch (diff) {
+    case '어려움':
+      return 'bg-rose-50 text-rose-700 border-rose-200';
+    case '보통':
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    case '쉬움':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    default:
+      return 'bg-slate-100 text-slate-600 border-slate-200';
+  }
 }
-
-export const DOMAIN_LIST: DomainItem[] = [
-  // 1권. 세포학, 생화학
-  { domainId: '6a7188a99e7407e1a69315e2', majorCategory: '1권. 세포학, 생화학', domainName: '1. 세포의 구성 물질' },
-  { domainId: '6a7188a99e7407e1a69315e3', majorCategory: '1권. 세포학, 생화학', domainName: '2. 효소' },
-  { domainId: '6a7188a99e7407e1a69315e4', majorCategory: '1권. 세포학, 생화학', domainName: '3. 세포의 구조와 기능' },
-  { domainId: '6a7188a99e7407e1a69315e5', majorCategory: '1권. 세포학, 생화학', domainName: '4. 생체 에너지론' },
-  { domainId: '6a7188a99e7407e1a69315e6', majorCategory: '1권. 세포학, 생화학', domainName: '5. 광합성' },
-  { domainId: '6a7188a99e7407e1a69315e7', majorCategory: '1권. 세포학, 생화학', domainName: '6. 세포 호흡과 당질의 생합성' },
-  { domainId: '6a7188a99e7407e1a69315e8', majorCategory: '1권. 세포학, 생화학', domainName: '7. 그 밖의 물질 대사' },
-  { domainId: '6a7188a99e7407e1a69315e9', majorCategory: '1권. 세포학, 생화학', domainName: '8. 세포의 수송 기작' },
-
-  // 2권. 분자생물학
-  { domainId: '6a7188a99e7407e1a69315ea', majorCategory: '2권. 분자생물학', domainName: '1. 핵산의 물리화학적 특성' },
-  { domainId: '6a7188a99e7407e1a69315eb', majorCategory: '2권. 분자생물학', domainName: '2. DNA 복제와 유전자 발현' },
-  { domainId: '6a7188a99e7407e1a69315ec', majorCategory: '2권. 분자생물학', domainName: '3. 유전자 발현 조절' },
-  { domainId: '6a7188a99e7407e1a69315ed', majorCategory: '2권. 분자생물학', domainName: '4. 돌연변이와 수복 기작' },
-  { domainId: '6a7188a99e7407e1a69315ee', majorCategory: '2권. 분자생물학', domainName: '5. 분자생물학 실험 방법' },
-
-  // 3권. 유전학, 분류학, 미생물학
-  { domainId: '6a7188a99e7407e1a69315ef', majorCategory: '3권. 유전학, 분류학, 미생물학', domainName: '1. 전달 유전학' },
-  { domainId: '6a7188a99e7407e1a69315f0', majorCategory: '3권. 유전학, 분류학, 미생물학', domainName: '2. 집단 유전학 및 진화학' },
-  { domainId: '6a7188a99e7407e1a69315f1', majorCategory: '3권. 유전학, 분류학, 미생물학', domainName: '3. 분류학' },
-  { domainId: '6a7188a99e7407e1a69315f2', majorCategory: '3권. 유전학, 분류학, 미생물학', domainName: '4. 미생물학' },
-
-  // 4권. 동물생리학
-  { domainId: '6a7188a99e7407e1a69315f3', majorCategory: '4권. 동물생리학', domainName: '1. 신호 전달과 내분비계' },
-  { domainId: '6a7188a99e7407e1a69315f4', majorCategory: '4권. 동물생리학', domainName: '2. 신경 세포와 신경계' },
-  { domainId: '6a7188a99e7407e1a69315f5', majorCategory: '4권. 동물생리학', domainName: '3. 감각계와 근육 생리학' },
-  { domainId: '6a7188a99e7407e1a69315f6', majorCategory: '4권. 동물생리학', domainName: '4. 순환계' },
-  { domainId: '6a7188a99e7407e1a69315f7', majorCategory: '4권. 동물생리학', domainName: '5. 호흡계' },
-  { domainId: '6a7188a99e7407e1a69315f8', majorCategory: '4권. 동물생리학', domainName: '6. 소화계' },
-  { domainId: '6a7188a99e7407e1a69315f9', majorCategory: '4권. 동물생리학', domainName: '7. 배설계' },
-
-  // 5권. 면역학, 발생학
-  { domainId: '6a7188a99e7407e1a69315fa', majorCategory: '5권. 면역학, 발생학', domainName: '1. 면역학' },
-  { domainId: '6a7188a99e7407e1a69315fb', majorCategory: '5권. 면역학, 발생학', domainName: '2. 세포 분열 및 암' },
-  { domainId: '6a7188a99e7407e1a69315fc', majorCategory: '5권. 면역학, 발생학', domainName: '3. 생식과 발생' },
-
-  // 6권. 식물학, 생리학
-  { domainId: '6a7188a99e7407e1a69315fd', majorCategory: '6권. 식물학, 생리학', domainName: '1. 식물의 생식과 발달' },
-  { domainId: '6a7188a99e7407e1a69315fe', majorCategory: '6권. 식물학, 생리학', domainName: '2. 식물 생리학' },
-  { domainId: '6a7188a99e7407e1a69315ff', majorCategory: '6권. 식물학, 생리학', domainName: '3. 생태학' },
-];
-
-const customScrollbar = "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-400/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400/40";
 
 export default function ReviewPage() {
   const navigate = useNavigate();
 
-  // 반응형 상태 관리 (모바일 여부 체크)
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(true);
+  // 서버 조회 조건 및 데이터
+  const [onlyWrong, setOnlyWrong] = useState(true);
+  const [items, setItems] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+  // 클라이언트 필터
+  const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>('ALL');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('ALL');
+  const [searchKeyword, setSearchKeyword] = useState<string>('');
+
+  // 복습 가림 모드 및 카드별 해설 열림 상태
+  const [hideAnswers, setHideAnswers] = useState(false);
+  const [revealedMap, setRevealedMap] = useState<Record<string, boolean>>({});
+
+  // 편집 draft 및 저장 피드백 상태
+  const [drafts, setDrafts] = useState<Record<string, NoteDraft>>({});
+  const [savingIds, setSavingIds] = useState<Record<string, boolean>>({});
+  const [savedNoticeIds, setSavedNoticeIds] = useState<Record<string, boolean>>({});
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const fetchHistories = useCallback(async (wrongOnly: boolean) => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const data = await getHistoriesApi({ onlyWrong: wrongOnly });
+      setItems(data);
+
+      const initialDrafts: Record<string, NoteDraft> = {};
+      for (const item of data) {
+        initialDrafts[item.problemId] = {
+          userDifficulty: item.userDifficulty || '보통',
+          reviewNotes: item.reviewNotes ?? '',
+        };
+      }
+      setDrafts(initialDrafts);
+      setRevealedMap({});
+    } catch (err: unknown) {
+      setErrorMsg(extractErrorMessage(err, '오답노트 데이터를 불러오지 못했습니다.'));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const [generationType, setGenerationType] = useState<GenerationType>('CHAPTER');
-  const [selectedDomainId, setSelectedDomainId] = useState<string>('');
-
-  const [reviewData, setReviewData] = useState<ProblemReviewResponse | null>(null);
-  
-  const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
-  const [showResultForProblem, setShowResultForProblem] = useState<Record<string, boolean>>({});
-  const [gradingLoading, setGradingLoading] = useState<Record<string, boolean>>({}); 
-
-  const [currentPage, setCurrentPage] = useState<number>(0);
-  const [isFetching, setIsFetching] = useState(false);
-
-  const touchStartXRef = useRef<number | null>(null);
-  const categories = Array.from(new Set(DOMAIN_LIST.map((item) => item.majorCategory)));
-
-  // 모바일은 1문제, 태블릿/PC는 2문제
-  const problemsPerPage = isMobile ? 1 : 2;
-
-  const pagesArray = [];
-  if (reviewData) {
-    for (let i = 0; i < reviewData.problems.length; i += problemsPerPage) {
-      pagesArray.push(reviewData.problems.slice(i, i + problemsPerPage));
-    }
-  }
-  const totalPages = pagesArray.length;
-
-  // 화면 리사이징 시 현재 페이지가 totalPages를 넘지 않도록 방어
   useEffect(() => {
-    if (totalPages > 0 && currentPage >= totalPages) {
-      setCurrentPage(totalPages - 1);
-    }
-  }, [totalPages, currentPage]);
+    void fetchHistories(onlyWrong);
+  }, [fetchHistories, onlyWrong]);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'TEXTAREA' || target.closest('textarea')) {
-      touchStartXRef.current = null;
-      return;
+  // 동적 과목/단원 옵션 추출
+  const subjectOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of items) {
+      if (item.subjectType) set.add(item.subjectType);
     }
-    touchStartXRef.current = e.touches[0].clientX;
+    return Array.from(set);
+  }, [items]);
+
+  const subCategoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of items) {
+      if (selectedSubject !== 'ALL' && item.subjectType !== selectedSubject) continue;
+      if (item.subCategory) set.add(item.subCategory);
+    }
+    return Array.from(set);
+  }, [items, selectedSubject]);
+
+  // 필터링된 목록
+  const filteredItems = useMemo(() => {
+    const kw = searchKeyword.trim().toLowerCase();
+    return items.filter((item) => {
+      if (selectedSubject !== 'ALL' && item.subjectType !== selectedSubject) return false;
+      if (selectedSubCategory !== 'ALL' && item.subCategory !== selectedSubCategory) return false;
+
+      const currentDiff = drafts[item.problemId]?.userDifficulty ?? item.userDifficulty;
+      if (selectedDifficulty !== 'ALL' && currentDiff !== selectedDifficulty) return false;
+
+      if (kw) {
+        const contentMatch = (item.content ?? '').toLowerCase().includes(kw);
+        const noteMatch = (drafts[item.problemId]?.reviewNotes ?? item.reviewNotes ?? '')
+          .toLowerCase()
+          .includes(kw);
+        const catMatch = (item.subCategory ?? '').toLowerCase().includes(kw);
+        if (!contentMatch && !noteMatch && !catMatch) return false;
+      }
+      return true;
+    });
+  }, [items, selectedSubject, selectedSubCategory, selectedDifficulty, searchKeyword, drafts]);
+
+  // 변경된(dirty) 문항 목록 계산
+  const dirtyItems = useMemo(() => {
+    return items.filter((item) => {
+      const draft = drafts[item.problemId];
+      if (!draft) return false;
+      const origDiff = item.userDifficulty || '보통';
+      const origNote = item.reviewNotes ?? '';
+      return draft.userDifficulty !== origDiff || draft.reviewNotes !== origNote;
+    });
+  }, [items, drafts]);
+
+  // 요약 통계
+  const stats = useMemo(() => {
+    const total = items.length;
+    const wrongCount = items.filter((i) => !i.isCorrect).length;
+    const notedCount = items.filter((i) => (i.reviewNotes ?? '').trim().length > 0).length;
+    const hardCount = items.filter((i) => i.userDifficulty === '어려움').length;
+    return { total, wrongCount, notedCount, hardCount };
+  }, [items]);
+
+  const updateDraft = (problemId: string, patch: Partial<NoteDraft>) => {
+    setDrafts((prev) => {
+      const current = prev[problemId] ?? { userDifficulty: '보통', reviewNotes: '' };
+      return {
+        ...prev,
+        [problemId]: { ...current, ...patch },
+      };
+    });
+    setSavedNoticeIds((prev) => ({ ...prev, [problemId]: false }));
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartXRef.current === null) return;
-
-    const touchEndX = e.changedTouches[0].clientX;
-    const diffX = touchStartXRef.current - touchEndX;
-    const minSwipeDistance = 50; 
-
-    if (diffX > minSwipeDistance) {
-      if (currentPage > 0) {
-        setCurrentPage((prev) => prev - 1);
-      }
-    } else if (diffX < -minSwipeDistance) {
-      if (!reviewData) {
-        navigate('/');
-      } else if (currentPage < totalPages - 1) {
-        setCurrentPage((prev) => prev + 1);
-      } else if (currentPage === totalPages - 1) {
-        navigate('/');
-      }
-    }
-    touchStartXRef.current = null;
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    window.setTimeout(() => {
+      setToastMsg((curr) => (curr === msg ? null : curr));
+    }, 2500);
   };
 
-  const handleFetchProblems = async () => {
-    if (generationType === 'CHAPTER' && !selectedDomainId) {
-      alert('조회할 단원을 선택해 주십시오.');
-      return;
-    }
+  const handleSaveSingle = async (item: HistoryItem) => {
+    const draft = drafts[item.problemId];
+    if (!draft) return;
 
-    setIsFetching(true);
+    setSavingIds((prev) => ({ ...prev, [item.problemId]: true }));
+    setErrorMsg(null);
     try {
-      const res: ProblemReviewResponse = await examApi.getReviewProblems(
-        generationType === 'CHAPTER' ? selectedDomainId : undefined
-      );
-      
-      setReviewData(res);
-      setCurrentPage(0);
-      setShowResultForProblem({});
-      
-      const initialAnswers: Record<string, string> = {};
-      res.problems.forEach(p => {
-        initialAnswers[p.problemId] = p.userAnswer || '';
+      const updated = await updateHistoryApi({
+        problemId: item.problemId,
+        subjectType: item.subjectType,
+        subCategory: item.subCategory,
+        userDifficulty: draft.userDifficulty,
+        reviewNotes: draft.reviewNotes,
       });
-      setUserAnswers(initialAnswers);
-      
-      // 모바일 환경일 경우 문제 조회 완료 시 사이드바 닫기
-      if (isMobile) setIsMobileSidebarOpen(false);
 
-    } catch (error) {
-      console.error('오답노트 조회 실패:', error);
-      alert('문제 조회에 실패했습니다. 서버 연결 상태를 확인해주세요.');
+      setItems((prev) => prev.map((x) => (x.problemId === updated.problemId ? updated : x)));
+      setDrafts((prev) => ({
+        ...prev,
+        [updated.problemId]: {
+          userDifficulty: updated.userDifficulty || '보통',
+          reviewNotes: updated.reviewNotes ?? '',
+        },
+      }));
+      setSavedNoticeIds((prev) => ({ ...prev, [updated.problemId]: true }));
+      showToast('오답노트가 저장되었습니다.');
+    } catch (err: unknown) {
+      setErrorMsg(extractErrorMessage(err, '저장에 실패했습니다.'));
     } finally {
-      setIsFetching(false);
+      setSavingIds((prev) => ({ ...prev, [item.problemId]: false }));
     }
   };
 
-  const handleAnswerChange = (problemId: string, value: string) => {
-    setUserAnswers((prev) => ({ ...prev, [problemId]: value }));
-  };
+  const handleBulkSave = async () => {
+    if (dirtyItems.length === 0) return;
 
-  const handleGradeProblem = async (problemId: string) => {
-    const answer = userAnswers[problemId] || '';
-    if (!answer.trim()) {
-      alert('작성된 답안이 없습니다.');
-      return;
-    }
-
-    setGradingLoading((prev) => ({ ...prev, [problemId]: true }));
+    setBulkSaving(true);
+    setErrorMsg(null);
     try {
-      const updatedProblem = await examApi.gradeSingleProblem(problemId, answer);
-
-      setReviewData((prev) => {
-        if (!prev) return null;
+      const updates = dirtyItems.map((item) => {
+        const draft = drafts[item.problemId];
         return {
-          ...prev,
-          problems: prev.problems.map((p) => 
-            p.problemId === problemId ? updatedProblem : p
-          ),
+          problemId: item.problemId,
+          subjectType: item.subjectType,
+          subCategory: item.subCategory,
+          userDifficulty: draft.userDifficulty,
+          reviewNotes: draft.reviewNotes,
         };
       });
 
-      setShowResultForProblem((prev) => ({ ...prev, [problemId]: true }));
-    } catch (error) {
-      console.error('단일 문제 재채점 실패:', error);
-      alert('AI 재채점 처리 중 오류가 발생했습니다.');
+      const updatedList = await bulkUpdateHistoriesApi({ updates });
+      const updatedMap = new Map(updatedList.map((u) => [u.problemId, u]));
+
+      setItems((prev) => prev.map((x) => updatedMap.get(x.problemId) ?? x));
+      setDrafts((prev) => {
+        const next = { ...prev };
+        for (const u of updatedList) {
+          next[u.problemId] = {
+            userDifficulty: u.userDifficulty || '보통',
+            reviewNotes: u.reviewNotes ?? '',
+          };
+        }
+        return next;
+      });
+
+      const noticePatch: Record<string, boolean> = {};
+      for (const u of updatedList) {
+        noticePatch[u.problemId] = true;
+      }
+      setSavedNoticeIds((prev) => ({ ...prev, ...noticePatch }));
+      showToast(`${updatedList.length}건의 오답노트가 일괄 저장되었습니다.`);
+    } catch (err: unknown) {
+      setErrorMsg(extractErrorMessage(err, '일괄 저장에 실패했습니다.'));
     } finally {
-      setGradingLoading((prev) => ({ ...prev, [problemId]: false }));
+      setBulkSaving(false);
     }
   };
 
+  const toggleCardReveal = (problemId: string) => {
+    setRevealedMap((prev) => ({ ...prev, [problemId]: !prev[problemId] }));
+  };
+
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-[#F2F8FF] relative overflow-hidden">
-      
-      {/* 모바일 백그라운드 오버레이 */}
-      {isMobile && isMobileSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/40 z-40 md:hidden transition-opacity"
-          onClick={() => setIsMobileSidebarOpen(false)}
-        />
-      )}
-
-      {/* 좌측 사이드바 영역 */}
-      <aside className={`
-        fixed md:static inset-y-0 left-0 z-50 flex flex-col justify-between 
-        w-[80%] max-w-[320px] md:w-72 bg-white md:bg-white/10 shadow-2xl md:shadow-sm border-r border-slate-200/50 p-6 md:backdrop-blur-sm overflow-y-auto 
-        transition-transform duration-300 ease-in-out ${customScrollbar}
-        ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-lg text-slate-800">조회 유형</h2>
-            {/* 모바일 닫기 버튼 */}
-            {isMobile && (
-              <button onClick={() => setIsMobileSidebarOpen(false)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-              </button>
-            )}
+    <div className="min-h-screen bg-slate-50 pb-16">
+      <main className="mx-auto max-w-5xl px-4 pt-6">
+        {/* 상단 타이틀 및 보기 모드 전환 */}
+        <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">오답노트 &amp; 풀이 기록</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              문항별 체감 난이도를 조정하고 나만의 복습 메모를 기록할 수 있습니다.
+            </p>
           </div>
 
-          <div className="space-y-2 mb-6">
-            <label className="flex items-center gap-2.5 cursor-pointer text-sm font-semibold text-slate-700 hover:text-slate-900">
-              <input
-                type="radio"
-                name="generationType"
-                value="CHAPTER"
-                checked={generationType === 'CHAPTER'}
-                onChange={() => setGenerationType('CHAPTER')}
-                className="accent-blue-600 h-4 w-4 cursor-pointer"
-              />
-              <span>단원별 조회</span>
-            </label>
-            <label className="flex items-center gap-2.5 cursor-pointer text-sm font-semibold text-slate-700 hover:text-slate-900">
-              <input
-                type="radio"
-                name="generationType"
-                value="ALL_PROBLEMS"
-                checked={generationType === 'ALL_PROBLEMS'}
-                onChange={() => {
-                  setGenerationType('ALL_PROBLEMS');
-                  setSelectedDomainId('');
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSubject('ALL');
+                  setSelectedSubCategory('ALL');
+                  setOnlyWrong(true);
                 }}
-                className="accent-blue-600 h-4 w-4 cursor-pointer"
-              />
-              <span>전체 문제 조회</span>
-            </label>
-          </div>
-
-          {generationType === 'CHAPTER' && (
-            <div className="space-y-4 pt-4 border-t border-slate-200/60">
-              <h3 className="font-bold text-sm text-slate-800 mb-2">조회 범위 선택</h3>
-              {categories.map((category) => (
-                <div key={category}>
-                  <h4 className="text-xs font-semibold text-slate-500 mb-2">{category}</h4>
-                  <div className="space-y-1.5 pl-2 border-l border-slate-200">
-                    {DOMAIN_LIST.filter((item) => item.majorCategory === category).map((item) => (
-                      <label
-                        key={item.domainId}
-                        className="flex items-center gap-2 cursor-pointer text-sm text-slate-700 hover:text-blue-600 py-0.5"
-                      >
-                        <input
-                          type="radio"
-                          name="domainSelect"
-                          value={item.domainId}
-                          checked={selectedDomainId === item.domainId}
-                          onChange={() => setSelectedDomainId(item.domainId)}
-                          className="accent-blue-600 h-3.5 w-3.5 cursor-pointer"
-                        />
-                        <span className="truncate">{item.domainName}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+                  onlyWrong
+                    ? 'bg-orange-500 text-white'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                틀린 문제만
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSubject('ALL');
+                  setSelectedSubCategory('ALL');
+                  setOnlyWrong(false);
+                }}
+                className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+                  !onlyWrong
+                    ? 'bg-orange-500 text-white'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                전체 풀이 기록
+              </button>
             </div>
-          )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setHideAnswers((prev) => !prev);
+                setRevealedMap({});
+              }}
+              className={`cursor-pointer rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
+                hideAnswers
+                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              {hideAnswers ? '복습 가림 모드 ON' : '정답·해설 가리기'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void fetchHistories(onlyWrong)}
+              disabled={loading}
+              className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+            >
+              새로고침
+            </button>
+          </div>
         </div>
 
-        {(generationType === 'ALL_PROBLEMS' || selectedDomainId !== '') && (
-          <div className="pt-4 mt-6 border-t border-slate-200/60 flex-shrink-0">
+        {/* 요약 통계 카드 4개 */}
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs font-medium text-slate-500">조회된 문항</div>
+            <div className="mt-1 text-2xl font-bold text-slate-900">{stats.total}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs font-medium text-slate-500">오답 문항</div>
+            <div className="mt-1 text-2xl font-bold text-rose-600">{stats.wrongCount}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs font-medium text-slate-500">체감 어려움</div>
+            <div className="mt-1 text-2xl font-bold text-orange-600">{stats.hardCount}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="text-xs font-medium text-slate-500">메모 작성 완료</div>
+            <div className="mt-1 text-2xl font-bold text-emerald-600">{stats.notedCount}</div>
+          </div>
+        </div>
+
+        {/* 필터 바 */}
+        <div className="mb-5 grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
+          <select
+            value={selectedSubject}
+            onChange={(e) => {
+              setSelectedSubject(e.target.value);
+              setSelectedSubCategory('ALL');
+            }}
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500"
+          >
+            <option value="ALL">전체 과목</option>
+            {subjectOptions.map((subj) => (
+              <option key={subj} value={subj}>
+                {subj}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedSubCategory}
+            onChange={(e) => setSelectedSubCategory(e.target.value)}
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500"
+          >
+            <option value="ALL">전체 단원</option>
+            {subCategoryOptions.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedDifficulty}
+            onChange={(e) => setSelectedDifficulty(e.target.value)}
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500"
+          >
+            <option value="ALL">전체 난이도</option>
+            {DIFFICULTIES.map((diff) => (
+              <option key={diff} value={diff}>
+                {diff}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="text"
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            placeholder="문제 지문 / 메모 검색..."
+            className="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500"
+          />
+        </div>
+
+        {/* 미저장 일괄 저장 배너 */}
+        {dirtyItems.length > 0 && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
+            <span className="text-sm font-medium text-orange-900">
+              수정 중인 오답노트가 <strong>{dirtyItems.length}건</strong> 있습니다.
+            </span>
             <button
-              onClick={handleFetchProblems}
-              disabled={isFetching}
-              className="w-full px-6 py-3 md:py-2 bg-blue-600 text-white rounded-lg font-bold cursor-pointer hover:bg-blue-700 transition-colors disabled:opacity-50"
+              type="button"
+              onClick={() => void handleBulkSave()}
+              disabled={bulkSaving}
+              className="cursor-pointer rounded-lg bg-orange-500 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-orange-600 disabled:opacity-60"
             >
-              {isFetching ? '조회 중...' : '문제 조회'}
+              {bulkSaving ? '일괄 저장 중...' : `변경된 ${dirtyItems.length}건 일괄 저장`}
             </button>
           </div>
         )}
-      </aside>
 
-      {/* 우측 메인 영역 */}
-      <main 
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        className="flex-1 flex flex-col relative overflow-hidden select-none touch-pan-y"
-      >
-        {/* 모바일 상단 헤더 */}
-        {isMobile && (
-          <div className="flex items-center p-4 bg-white border-b border-slate-200 shadow-sm shrink-0 z-10">
-            <button 
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg mr-3"
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
-            </button>
-            <h1 className="font-bold text-lg text-slate-800">
-              문제 복습
-            </h1>
+        {/* 토스트 및 에러 알림 */}
+        {toastMsg && (
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            {toastMsg}
+          </div>
+        )}
+        {errorMsg && (
+          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+            {errorMsg}
           </div>
         )}
 
-        <div className="flex-1 p-4 md:p-8 flex flex-col overflow-hidden relative">
-          {!reviewData ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 font-medium px-4 text-center">
-              <p>좌측 패널(또는 메뉴)에서 설정을 완료한 후<br/>[문제 조회] 버튼을 눌러주십시오.</p>
-              {isMobile && (
-                <button 
-                  onClick={() => setIsMobileSidebarOpen(true)}
-                  className="mt-6 px-6 py-2 bg-blue-100 text-blue-600 font-bold rounded-full text-sm"
-                >
-                  메뉴 열기
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              
-              <div className="flex-1 overflow-hidden relative">
-                <div 
-                  className="w-full h-full flex transition-transform duration-300 ease-out"
-                  style={{ transform: `translateX(-${currentPage * 100}%)` }}
-                >
-                  {pagesArray.map((pageProblems, pageIndex) => (
-                    <div 
-                      key={pageIndex} 
-                      className="w-full h-full flex-shrink-0 md:px-2 flex flex-col"
-                    >
-                      <div className={`flex-1 overflow-y-auto pb-4 ${customScrollbar}`}>
-                        {/* 모바일 1열, 태블릿 2열 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 h-full">
-                          {pageProblems.map((problem, idx) => {
-                            const actualProblemNumber = pageIndex * problemsPerPage + idx + 1;
-                            const isGraded = showResultForProblem[problem.problemId];
-                            const isLoadingThis = gradingLoading[problem.problemId];
+        {/* 본문: 로딩 / 빈 상태 / 오답 카드 리스트 */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white py-20 text-slate-500">
+            <div className="mb-3 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-orange-500" />
+            <p className="text-sm font-medium">오답노트를 불러오는 중입니다...</p>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center">
+            <p className="text-base font-semibold text-slate-800">
+              {items.length === 0
+                ? onlyWrong
+                  ? '아직 틀린 문제가 없습니다.'
+                  : '아직 저장된 풀이 기록이 없습니다.'
+                : '선택한 필터 조건에 해당하는 문항이 없습니다.'}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              {items.length === 0
+                ? '문제를 풀고 채점하면 자동으로 이 화면에 기록됩니다.'
+                : '필터나 검색어를 초기화해 다시 확인해 보세요.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (items.length === 0) {
+                  navigate('/');
+                } else {
+                  setSelectedSubject('ALL');
+                  setSelectedSubCategory('ALL');
+                  setSelectedDifficulty('ALL');
+                  setSearchKeyword('');
+                }
+              }}
+              className="mt-5 cursor-pointer rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-orange-600"
+            >
+              {items.length === 0 ? '문제 풀러 가기' : '필터 초기화'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {filteredItems.map((item, idx) => {
+              const draft = drafts[item.problemId] ?? {
+                userDifficulty: item.userDifficulty || '보통',
+                reviewNotes: item.reviewNotes ?? '',
+              };
+              const isDirty =
+                draft.userDifficulty !== (item.userDifficulty || '보통') ||
+                draft.reviewNotes !== (item.reviewNotes ?? '');
+              const isSaving = Boolean(savingIds[item.problemId]);
+              const isSavedNotice = Boolean(savedNoticeIds[item.problemId]);
+              const showSolution = !hideAnswers || Boolean(revealedMap[item.problemId]);
 
+              return (
+                <article
+                  key={item.historyId || item.problemId}
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
+                >
+                  {/* 카드 상단 메타 헤더 */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-slate-400">#{idx + 1}</span>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                          item.isCorrect
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {item.isCorrect ? '정답' : '오답'}
+                      </span>
+                      <span className="rounded-md bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                        {item.subjectType || '기타'}
+                      </span>
+                      <span className="rounded-md bg-white px-2.5 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+                        {item.subCategory || '기타'}
+                      </span>
+                      <span
+                        className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${difficultyBadgeStyle(
+                          draft.userDifficulty,
+                        )}`}
+                      >
+                        체감: {draft.userDifficulty}
+                      </span>
+                    </div>
+
+                    <span className="text-xs text-slate-400">
+                      최근 풀이: {formatKstDate(item.solvedAt)}
+                    </span>
+                  </div>
+
+                  {/* 문제 지문 및 선택지 */}
+                  <div className="p-5">
+                    <p className="whitespace-pre-wrap text-[15px] leading-relaxed font-semibold text-slate-900">
+                      {item.content ?? '(삭제되었거나 원문을 찾을 수 없는 문제입니다.)'}
+                    </p>
+
+                    {item.choices && item.choices.length > 0 && (
+                      <ul className="mt-4 space-y-2">
+                        {item.choices.map((choice, cIdx) => {
+                          const choiceNum = cIdx + 1;
+                          const isAnswer = showSolution && item.correctAnswer === choiceNum;
+                          return (
+                            <li
+                              key={cIdx}
+                              className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm ${
+                                isAnswer
+                                  ? 'border-emerald-300 bg-emerald-50 font-semibold text-emerald-900'
+                                  : 'border-slate-200 bg-white text-slate-700'
+                              }`}
+                            >
+                              <span
+                                className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                  isAnswer
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}
+                              >
+                                {choiceNum}
+                              </span>
+                              <span className="flex-1 whitespace-pre-wrap">{choice}</span>
+                              {isAnswer && (
+                                <span className="shrink-0 rounded-md bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                                  정답
+                                </span>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+
+                    {/* 복습 가림 모드일 때 개별 정답/해설 토글 */}
+                    {hideAnswers && (
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={() => toggleCardReveal(item.problemId)}
+                          className="cursor-pointer rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                        >
+                          {showSolution ? '정답 · 해설 숨기기' : '정답 · 해설 확인하기'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* AI 해설 영역 */}
+                    {showSolution && item.explanation && (
+                      <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/70 p-4">
+                        <div className="mb-1 flex items-center gap-2 text-xs font-bold text-sky-800">
+                          <span>정답: {item.correctAnswer ?? '-'}번</span>
+                          <span>·</span>
+                          <span>해설</span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                          {item.explanation}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 체감 난이도 & 복습 메모 편집 영역 */}
+                    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-700">체감 난이도</span>
+                        <div className="flex items-center gap-1.5">
+                          {DIFFICULTIES.map((level) => {
+                            const active = draft.userDifficulty === level;
                             return (
-                              <div key={problem.problemId} className="bg-white p-5 md:p-8 rounded-xl shadow-sm border border-slate-200 flex flex-col h-fit">
-                                
-                                <div className="mb-4 md:mb-6 flex justify-between items-center">
-                                  <div className="flex items-center gap-2 md:gap-3">
-                                    <h3 className="text-lg md:text-xl font-bold text-slate-800 tracking-tight">{actualProblemNumber}번 문제</h3>
-                                    
-                                    {isGraded && (
-                                      <span className={`px-2 md:px-3 py-1 rounded-full text-xs font-extrabold tracking-wide border ${
-                                        problem.isCorrect 
-                                          ? 'bg-green-50 text-green-700 border-green-200' 
-                                          : 'bg-red-50 text-red-700 border-red-200'
-                                      }`}>
-                                        {problem.isCorrect ? '정답' : '오답'}
-                                      </span>
-                                    )}
-                                  </div>
-                                  
-                                  {/* 단일 문제 AI 채점 요청 버튼 */}
-                                  {!isGraded && (
-                                    <button 
-                                      onClick={() => handleGradeProblem(problem.problemId)}
-                                      disabled={isLoadingThis}
-                                      className="px-3 md:px-4 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 font-bold rounded-lg text-xs md:text-sm transition-colors cursor-pointer disabled:opacity-50"
-                                    >
-                                      {isLoadingThis ? '채점 중...' : '채점'}
-                                    </button>
-                                  )}
-                                </div>
-                                
-                                <div className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed flex-1 select-text">
-                                  {problem.content || problem.title}
-                                </div>
-
-                                <div className="mt-6 md:mt-8 border-t border-slate-100 pt-4 md:pt-6 select-text">
-                                  <label className="block text-sm md:text-base font-bold text-slate-800 mb-2 md:mb-3">내 답안</label>
-                                  <textarea
-                                    value={userAnswers[problem.problemId] || ''}
-                                    onChange={(e) => handleAnswerChange(problem.problemId, e.target.value)}
-                                    className={`w-full h-28 md:h-32 p-3 md:p-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm transition-all shadow-inner ${customScrollbar} ${
-                                      isGraded
-                                        ? 'bg-slate-50 border-slate-200 text-slate-600 opacity-90 cursor-not-allowed' 
-                                        : 'bg-[#F8FAFC] border-slate-200 focus:bg-white text-slate-800'
-                                    }`}
-                                    placeholder="답안을 서술하십시오."
-                                    disabled={isGraded}
-                                  />
-                                </div>
-
-                                {/* 채점 완료 후 보여지는 AI 피드백 및 모범 답안 */}
-                                {isGraded && (
-                                  <div className="mt-4 flex flex-col gap-3 select-text">
-                                    {problem.referenceAnswer && (
-                                      <div className="p-3 md:p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                          <label className="text-xs font-bold text-slate-700">모범 답안</label>
-                                        </div>
-                                        <p className="text-xs md:text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
-                                          {problem.referenceAnswer}
-                                        </p>
-                                      </div>
-                                    )}
-
-                                    {problem.aiFeedback && (
-                                      <div className="p-3 md:p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <svg className="w-4 h-4 md:w-5 md:h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                          <label className="text-xs md:text-sm font-bold text-blue-900">AI 피드백</label>
-                                        </div>
-                                        <p className="text-xs md:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                                          {typeof problem.aiFeedback === 'string' 
-                                            ? problem.aiFeedback 
-                                            : JSON.stringify(problem.aiFeedback, null, 2)}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                              </div>
+                              <button
+                                key={level}
+                                type="button"
+                                onClick={() =>
+                                  updateDraft(item.problemId, { userDifficulty: level })
+                                }
+                                className={`cursor-pointer rounded-lg border px-3 py-1 text-xs font-semibold transition ${
+                                  active
+                                    ? 'border-orange-500 bg-orange-500 text-white'
+                                    : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
+                                }`}
+                              >
+                                {level}
+                              </button>
                             );
                           })}
                         </div>
                       </div>
+
+                      <label
+                        htmlFor={`note-${item.problemId}`}
+                        className="mb-1.5 block text-xs font-bold text-slate-700"
+                      >
+                        복습 메모 (틀린 이유, 암기 포인트)
+                      </label>
+                      <textarea
+                        id={`note-${item.problemId}`}
+                        rows={3}
+                        value={draft.reviewNotes}
+                        onChange={(e) =>
+                          updateDraft(item.problemId, { reviewNotes: e.target.value })
+                        }
+                        placeholder="예: 조건 A와 B를 혼동함. 핵심 키워드 다시 정리..."
+                        className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                      />
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-xs font-medium">
+                          {isDirty ? (
+                            <span className="text-orange-600">● 변경 사항 있음 (저장 필요)</span>
+                          ) : isSavedNotice ? (
+                            <span className="text-emerald-600">✓ 저장 완료</span>
+                          ) : (
+                            <span className="text-slate-400">저장된 상태</span>
+                          )}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveSingle(item)}
+                          disabled={isSaving || !isDirty}
+                          className="cursor-pointer rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        >
+                          {isSaving ? '저장 중...' : '메모 저장'}
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 하단 페이지네이션 컨트롤 */}
-              <div className="mt-2 md:mt-4 pt-4 flex items-center justify-center relative flex-shrink-0">
-                <div className="flex gap-4 md:gap-6">
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.max(0, prev - 1))}
-                    disabled={currentPage === 0}
-                    className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-600 text-white flex items-center justify-center disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors shadow-md cursor-pointer"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1))}
-                    disabled={currentPage >= totalPages - 1}
-                    className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-600 text-white flex items-center justify-center disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors shadow-md cursor-pointer"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          )}
-        </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );
