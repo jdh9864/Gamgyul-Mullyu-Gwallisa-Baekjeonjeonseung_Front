@@ -35,36 +35,32 @@ function formatKstDate(isoString: string): string {
 function difficultyBadgeStyle(diff: string): string {
   switch (diff) {
     case '어려움':
-      return 'bg-rose-50 text-rose-700 border-rose-200';
+      return 'bg-red-50 text-red-700 border-red-200';
     case '보통':
-      return 'bg-amber-50 text-amber-700 border-amber-200';
+      return 'bg-blue-50 text-blue-700 border-blue-200';
     case '쉬움':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      return 'bg-green-50 text-green-700 border-green-200';
     default:
-      return 'bg-slate-100 text-slate-600 border-slate-200';
+      return 'bg-slate-50 text-slate-600 border-slate-200';
   }
 }
 
 export default function ReviewPage() {
   const navigate = useNavigate();
 
-  // 서버 조회 조건 및 데이터
   const [onlyWrong, setOnlyWrong] = useState(true);
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // 클라이언트 필터
   const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('ALL');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('ALL');
   const [searchKeyword, setSearchKeyword] = useState<string>('');
 
-  // 복습 가림 모드 및 카드별 해설 열림 상태
   const [hideAnswers, setHideAnswers] = useState(false);
   const [revealedMap, setRevealedMap] = useState<Record<string, boolean>>({});
 
-  // 편집 draft 및 저장 피드백 상태
   const [drafts, setDrafts] = useState<Record<string, NoteDraft>>({});
   const [savingIds, setSavingIds] = useState<Record<string, boolean>>({});
   const [savedNoticeIds, setSavedNoticeIds] = useState<Record<string, boolean>>({});
@@ -98,7 +94,6 @@ export default function ReviewPage() {
     void fetchHistories(onlyWrong);
   }, [fetchHistories, onlyWrong]);
 
-  // 동적 과목/단원 옵션 추출
   const subjectOptions = useMemo(() => {
     const set = new Set<string>();
     for (const item of items) {
@@ -116,7 +111,6 @@ export default function ReviewPage() {
     return Array.from(set);
   }, [items, selectedSubject]);
 
-  // 필터링된 목록
   const filteredItems = useMemo(() => {
     const kw = searchKeyword.trim().toLowerCase();
     return items.filter((item) => {
@@ -138,7 +132,6 @@ export default function ReviewPage() {
     });
   }, [items, selectedSubject, selectedSubCategory, selectedDifficulty, searchKeyword, drafts]);
 
-  // 변경된(dirty) 문항 목록 계산
   const dirtyItems = useMemo(() => {
     return items.filter((item) => {
       const draft = drafts[item.problemId];
@@ -149,7 +142,6 @@ export default function ReviewPage() {
     });
   }, [items, drafts]);
 
-  // 요약 통계
   const stats = useMemo(() => {
     const total = items.length;
     const wrongCount = items.filter((i) => !i.isCorrect).length;
@@ -258,19 +250,21 @@ export default function ReviewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-16">
-      <main className="mx-auto max-w-5xl px-4 pt-6">
+    <div className="min-h-[calc(100dvh-3.5rem)] bg-[#F2F8FF] pb-[max(5rem,env(safe-area-inset-bottom))]">
+      <main className="mx-auto max-w-5xl px-3 pt-4 sm:px-4 sm:pt-6">
         {/* 상단 타이틀 및 보기 모드 전환 */}
-        <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div className="mb-4 flex flex-col justify-between gap-3 sm:mb-6 sm:flex-row sm:items-end">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">오답노트 &amp; 풀이 기록</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              문항별 체감 난이도를 조정하고 나만의 복습 메모를 기록할 수 있습니다.
+            <h1 className="text-xl font-bold tracking-tight text-slate-800 sm:text-2xl">
+              오답노트 &amp; 풀이 기록
+            </h1>
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+              체감 난이도를 조정하고 나만의 복습 메모를 기록할 수 있습니다.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+            <div className="grid flex-1 grid-cols-2 rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:inline-flex sm:flex-none">
               <button
                 type="button"
                 onClick={() => {
@@ -278,10 +272,10 @@ export default function ReviewPage() {
                   setSelectedSubCategory('ALL');
                   setOnlyWrong(true);
                 }}
-                className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+                className={`min-h-9 cursor-pointer whitespace-nowrap rounded-md px-3 text-xs font-bold transition-colors sm:px-3.5 ${
                   onlyWrong
-                    ? 'bg-orange-500 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
                 }`}
               >
                 틀린 문제만
@@ -293,13 +287,13 @@ export default function ReviewPage() {
                   setSelectedSubCategory('ALL');
                   setOnlyWrong(false);
                 }}
-                className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+                className={`min-h-9 cursor-pointer whitespace-nowrap rounded-md px-3 text-xs font-bold transition-colors sm:px-3.5 ${
                   !onlyWrong
-                    ? 'bg-orange-500 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
                 }`}
               >
-                전체 풀이 기록
+                전체 풀이
               </button>
             </div>
 
@@ -309,55 +303,63 @@ export default function ReviewPage() {
                 setHideAnswers((prev) => !prev);
                 setRevealedMap({});
               }}
-              className={`cursor-pointer rounded-xl border px-3.5 py-2 text-xs font-semibold transition ${
+              className={`min-h-10 cursor-pointer whitespace-nowrap rounded-lg border px-3 text-xs font-bold shadow-sm transition-colors ${
                 hideAnswers
-                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
-              {hideAnswers ? '복습 가림 모드 ON' : '정답·해설 가리기'}
+              {hideAnswers ? '가림 ON' : '정답 가리기'}
             </button>
 
             <button
               type="button"
               onClick={() => void fetchHistories(onlyWrong)}
               disabled={loading}
-              className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              className="min-h-10 cursor-pointer whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               새로고침
             </button>
           </div>
         </div>
 
-        {/* 요약 통계 카드 4개 */}
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs font-medium text-slate-500">조회된 문항</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{stats.total}</div>
+        {/* 요약 통계 카드 (모바일 4열 압축 또는 2x2 균형) */}
+        <div className="mb-4 grid grid-cols-2 gap-2.5 sm:mb-6 sm:grid-cols-4 sm:gap-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+            <div className="text-xs font-bold text-slate-500">조회된 문항</div>
+            <div className="mt-1 text-xl font-extrabold text-slate-800 sm:text-2xl">
+              {stats.total}
+            </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs font-medium text-slate-500">오답 문항</div>
-            <div className="mt-1 text-2xl font-bold text-rose-600">{stats.wrongCount}</div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+            <div className="text-xs font-bold text-slate-500">오답 문항</div>
+            <div className="mt-1 text-xl font-extrabold text-red-600 sm:text-2xl">
+              {stats.wrongCount}
+            </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs font-medium text-slate-500">체감 어려움</div>
-            <div className="mt-1 text-2xl font-bold text-orange-600">{stats.hardCount}</div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+            <div className="text-xs font-bold text-slate-500">체감 어려움</div>
+            <div className="mt-1 text-xl font-extrabold text-blue-600 sm:text-2xl">
+              {stats.hardCount}
+            </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-xs font-medium text-slate-500">메모 작성 완료</div>
-            <div className="mt-1 text-2xl font-bold text-emerald-600">{stats.notedCount}</div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+            <div className="text-xs font-bold text-slate-500">메모 작성 완료</div>
+            <div className="mt-1 text-xl font-extrabold text-green-600 sm:text-2xl">
+              {stats.notedCount}
+            </div>
           </div>
         </div>
 
-        {/* 필터 바 */}
-        <div className="mb-5 grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
+        {/* 필터 바 (모바일 2열 압축 + 16px 폰트로 iOS 확대 방지) */}
+        <div className="mb-4 grid grid-cols-2 gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:mb-5 sm:grid-cols-4 sm:gap-3 sm:p-4">
           <select
             value={selectedSubject}
             onChange={(e) => {
               setSelectedSubject(e.target.value);
               setSelectedSubCategory('ALL');
             }}
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500"
+            className="min-h-10 w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 text-base font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:px-3 sm:text-sm"
           >
             <option value="ALL">전체 과목</option>
             {subjectOptions.map((subj) => (
@@ -368,22 +370,9 @@ export default function ReviewPage() {
           </select>
 
           <select
-            value={selectedSubCategory}
-            onChange={(e) => setSelectedSubCategory(e.target.value)}
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500"
-          >
-            <option value="ALL">전체 단원</option>
-            {subCategoryOptions.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-
-          <select
             value={selectedDifficulty}
             onChange={(e) => setSelectedDifficulty(e.target.value)}
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500"
+            className="min-h-10 w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 text-base font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:px-3 sm:text-sm"
           >
             <option value="ALL">전체 난이도</option>
             {DIFFICULTIES.map((diff) => (
@@ -393,53 +382,64 @@ export default function ReviewPage() {
             ))}
           </select>
 
+          <select
+            value={selectedSubCategory}
+            onChange={(e) => setSelectedSubCategory(e.target.value)}
+            className="col-span-2 min-h-10 w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 text-base font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:col-span-1 sm:px-3 sm:text-sm"
+          >
+            <option value="ALL">전체 단원</option>
+            {subCategoryOptions.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+
           <input
             type="text"
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
             placeholder="문제 지문 / 메모 검색..."
-            className="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none focus:border-orange-500"
+            className="col-span-2 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:col-span-1 sm:text-sm"
           />
         </div>
 
-        {/* 미저장 일괄 저장 배너 */}
-        {dirtyItems.length > 0 && (
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
-            <span className="text-sm font-medium text-orange-900">
-              수정 중인 오답노트가 <strong>{dirtyItems.length}건</strong> 있습니다.
-            </span>
-            <button
-              type="button"
-              onClick={() => void handleBulkSave()}
-              disabled={bulkSaving}
-              className="cursor-pointer rounded-lg bg-orange-500 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-orange-600 disabled:opacity-60"
-            >
-              {bulkSaving ? '일괄 저장 중...' : `변경된 ${dirtyItems.length}건 일괄 저장`}
-            </button>
-          </div>
-        )}
-
         {/* 토스트 및 에러 알림 */}
         {toastMsg && (
-          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
             {toastMsg}
           </div>
         )}
         {errorMsg && (
-          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {errorMsg}
           </div>
         )}
 
-        {/* 본문: 로딩 / 빈 상태 / 오답 카드 리스트 */}
+        {/* 본문 */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white py-20 text-slate-500">
-            <div className="mb-3 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-orange-500" />
-            <p className="text-sm font-medium">오답노트를 불러오는 중입니다...</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-20 text-slate-500 shadow-sm">
+            <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+            <p className="text-sm font-bold text-slate-700">오답노트를 불러오는 중입니다...</p>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center">
-            <p className="text-base font-semibold text-slate-800">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm sm:py-20">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+              <svg
+                className="h-8 w-8 text-blue-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth="2"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <p className="text-base font-bold text-slate-800">
               {items.length === 0
                 ? onlyWrong
                   ? '아직 틀린 문제가 없습니다.'
@@ -463,13 +463,13 @@ export default function ReviewPage() {
                   setSearchKeyword('');
                 }
               }}
-              className="mt-5 cursor-pointer rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-orange-600"
+              className="mt-6 min-h-11 cursor-pointer rounded-lg bg-blue-600 px-6 text-sm font-bold text-white shadow-md transition-colors hover:bg-blue-700"
             >
               {items.length === 0 ? '문제 풀러 가기' : '필터 초기화'}
             </button>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4 sm:space-y-5">
             {filteredItems.map((item, idx) => {
               const draft = drafts[item.problemId] ?? {
                 userDifficulty: item.userDifficulty || '보통',
@@ -485,73 +485,75 @@ export default function ReviewPage() {
               return (
                 <article
                   key={item.historyId || item.problemId}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                 >
                   {/* 카드 상단 메타 헤더 */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-bold text-slate-400">#{idx + 1}</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-[#F2F8FF]/60 px-4 py-3 sm:px-5">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <span className="text-xs font-bold text-slate-500">#{idx + 1}</span>
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                        className={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${
                           item.isCorrect
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-rose-100 text-rose-700'
+                            ? 'border-green-200 bg-green-50 text-green-700'
+                            : 'border-red-200 bg-red-50 text-red-700'
                         }`}
                       >
                         {item.isCorrect ? '정답' : '오답'}
                       </span>
-                      <span className="rounded-md bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                      <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">
                         {item.subjectType || '기타'}
                       </span>
-                      <span className="rounded-md bg-white px-2.5 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+                      <span className="max-w-44 truncate rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 sm:max-w-none">
                         {item.subCategory || '기타'}
                       </span>
                       <span
-                        className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${difficultyBadgeStyle(
+                        className={`rounded-md border px-2 py-0.5 text-xs font-bold ${difficultyBadgeStyle(
                           draft.userDifficulty,
                         )}`}
                       >
-                        체감: {draft.userDifficulty}
+                        {draft.userDifficulty}
                       </span>
                     </div>
 
-                    <span className="text-xs text-slate-400">
-                      최근 풀이: {formatKstDate(item.solvedAt)}
+                    <span className="text-[11px] font-medium text-slate-400 sm:text-xs">
+                      {formatKstDate(item.solvedAt)}
                     </span>
                   </div>
 
                   {/* 문제 지문 및 선택지 */}
-                  <div className="p-5">
-                    <p className="whitespace-pre-wrap text-[15px] leading-relaxed font-semibold text-slate-900">
+                  <div className="p-4 sm:p-6">
+                    <p className="break-words whitespace-pre-wrap text-sm leading-relaxed font-medium text-slate-800 sm:text-base">
                       {item.content ?? '(삭제되었거나 원문을 찾을 수 없는 문제입니다.)'}
                     </p>
 
                     {item.choices && item.choices.length > 0 && (
-                      <ul className="mt-4 space-y-2">
+                      <ul className="mt-4 space-y-2 border-t border-slate-100 pt-4 sm:mt-5 sm:space-y-2.5 sm:pt-5">
                         {item.choices.map((choice, cIdx) => {
                           const choiceNum = cIdx + 1;
                           const isAnswer = showSolution && item.correctAnswer === choiceNum;
                           return (
                             <li
                               key={cIdx}
-                              className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm ${
+                              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-all sm:px-3.5 sm:py-3 ${
                                 isAnswer
-                                  ? 'border-emerald-300 bg-emerald-50 font-semibold text-emerald-900'
+                                  ? 'border-green-500 bg-green-50/50 font-bold text-slate-800 ring-1 ring-green-500'
                                   : 'border-slate-200 bg-white text-slate-700'
                               }`}
                             >
                               <span
                                 className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                                   isAnswer
-                                    ? 'bg-emerald-600 text-white'
+                                    ? 'bg-green-600 text-white'
                                     : 'bg-slate-100 text-slate-600'
                                 }`}
                               >
                                 {choiceNum}
                               </span>
-                              <span className="flex-1 whitespace-pre-wrap">{choice}</span>
+                              <span className="min-w-0 flex-1 break-words whitespace-pre-wrap leading-snug">
+                                {choice}
+                              </span>
                               {isAnswer && (
-                                <span className="shrink-0 rounded-md bg-emerald-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                                <span className="shrink-0 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-bold text-green-700">
                                   정답
                                 </span>
                               )}
@@ -561,38 +563,51 @@ export default function ReviewPage() {
                       </ul>
                     )}
 
-                    {/* 복습 가림 모드일 때 개별 정답/해설 토글 */}
+                    {/* 복습 가림 모드 토글 */}
                     {hideAnswers && (
                       <div className="mt-4">
                         <button
                           type="button"
                           onClick={() => toggleCardReveal(item.problemId)}
-                          className="cursor-pointer rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                          className="min-h-10 cursor-pointer rounded-lg border border-blue-200 bg-blue-50 px-4 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-100"
                         >
                           {showSolution ? '정답 · 해설 숨기기' : '정답 · 해설 확인하기'}
                         </button>
                       </div>
                     )}
 
-                    {/* AI 해설 영역 */}
+                    {/* 상세 해설 영역 */}
                     {showSolution && item.explanation && (
-                      <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/70 p-4">
-                        <div className="mb-1 flex items-center gap-2 text-xs font-bold text-sky-800">
-                          <span>정답: {item.correctAnswer ?? '-'}번</span>
-                          <span>·</span>
-                          <span>해설</span>
+                      <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/70 p-3.5 sm:mt-5 sm:p-4">
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <svg
+                            className="h-4 w-4 shrink-0 text-blue-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            strokeWidth="2.5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          <span className="text-sm font-bold text-blue-900">
+                            상세 해설 (정답: {item.correctAnswer ?? '-'}번)
+                          </span>
                         </div>
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                        <p className="break-words whitespace-pre-wrap text-sm leading-relaxed font-medium text-slate-700">
                           {item.explanation}
                         </p>
                       </div>
                     )}
 
-                    {/* 체감 난이도 & 복습 메모 편집 영역 */}
-                    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    {/* 체감 난이도 & 복습 메모 편집 영역 (터치 타겟 40px+ & 16px textarea) */}
+                    <div className="mt-4 rounded-lg border border-slate-200 bg-[#F2F8FF]/50 p-3.5 sm:mt-5 sm:p-4">
+                      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <span className="text-xs font-bold text-slate-700">체감 난이도</span>
-                        <div className="flex items-center gap-1.5">
+                        <div className="grid grid-cols-3 gap-1.5 sm:flex">
                           {DIFFICULTIES.map((level) => {
                             const active = draft.userDifficulty === level;
                             return (
@@ -602,10 +617,10 @@ export default function ReviewPage() {
                                 onClick={() =>
                                   updateDraft(item.problemId, { userDifficulty: level })
                                 }
-                                className={`cursor-pointer rounded-lg border px-3 py-1 text-xs font-semibold transition ${
+                                className={`min-h-10 cursor-pointer rounded-lg border px-3 text-xs font-bold transition-colors sm:min-h-8 ${
                                   active
-                                    ? 'border-orange-500 bg-orange-500 text-white'
-                                    : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
+                                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-blue-50 hover:text-blue-600'
                                 }`}
                               >
                                 {level}
@@ -628,18 +643,18 @@ export default function ReviewPage() {
                         onChange={(e) =>
                           updateDraft(item.problemId, { reviewNotes: e.target.value })
                         }
-                        placeholder="예: 조건 A와 B를 혼동함. 핵심 키워드 다시 정리..."
-                        className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                        placeholder="예: 개념 A와 B의 차이를 혼동함. 핵심 키워드 다시 정리..."
+                        className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:px-3.5 sm:text-sm"
                       />
 
-                      <div className="mt-3 flex items-center justify-between">
-                        <span className="text-xs font-medium">
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold">
                           {isDirty ? (
-                            <span className="text-orange-600">● 변경 사항 있음 (저장 필요)</span>
+                            <span className="text-blue-600">● 변경됨</span>
                           ) : isSavedNotice ? (
-                            <span className="text-emerald-600">✓ 저장 완료</span>
+                            <span className="text-green-600">✓ 저장 완료</span>
                           ) : (
-                            <span className="text-slate-400">저장된 상태</span>
+                            <span className="text-slate-400">저장됨</span>
                           )}
                         </span>
 
@@ -647,7 +662,7 @@ export default function ReviewPage() {
                           type="button"
                           onClick={() => void handleSaveSingle(item)}
                           disabled={isSaving || !isDirty}
-                          className="cursor-pointer rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                          className="min-h-10 cursor-pointer rounded-lg bg-blue-600 px-4 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                         >
                           {isSaving ? '저장 중...' : '메모 저장'}
                         </button>
@@ -660,6 +675,25 @@ export default function ReviewPage() {
           </div>
         )}
       </main>
+
+      {/* 미저장 항목이 있을 때 화면 하단 고정 일괄 저장 바 (모바일 엄지 영역 최적화) */}
+      {dirtyItems.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-blue-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg backdrop-blur-sm">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+            <span className="text-xs font-medium text-slate-700 sm:text-sm">
+              미저장 메모 <strong className="font-bold text-blue-600">{dirtyItems.length}건</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleBulkSave()}
+              disabled={bulkSaving}
+              className="min-h-10 cursor-pointer rounded-lg bg-blue-600 px-4 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50 sm:px-5 sm:text-sm"
+            >
+              {bulkSaving ? '일괄 저장 중...' : `${dirtyItems.length}건 일괄 저장`}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

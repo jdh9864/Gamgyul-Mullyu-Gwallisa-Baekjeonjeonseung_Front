@@ -107,26 +107,40 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+    <div className="flex min-h-dvh items-center justify-center bg-[#F2F8FF] px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-xl font-extrabold text-white shadow-xs">
-            감
+          <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md">
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth="2.2"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">감귤 백전전승</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            AI 맞춤 문제 출제 · 자동 채점 · 개인 오답노트
+          <h1 className="text-xl font-bold tracking-tight text-slate-800 sm:text-2xl">
+            개발자 상식
+          </h1>
+          <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+            단원별 AI 문제 출제 · 자동 채점 · 오답노트
           </p>
         </div>
 
-        {/* 탭 전환 */}
-        <div className="mb-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+        {/* 탭 전환 (터치 영역 44px 확보) */}
+        <div className="mb-6 grid grid-cols-2 rounded-lg border border-blue-100 bg-[#F2F8FF] p-1">
           <button
             type="button"
             onClick={() => switchMode('login')}
-            className={`cursor-pointer rounded-lg py-2 text-sm font-semibold transition-all ${
+            className={`min-h-10 cursor-pointer rounded-md text-sm font-bold transition-all ${
               mode === 'login'
-                ? 'bg-white text-slate-900 shadow-xs'
+                ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -135,9 +149,9 @@ export default function AuthPage() {
           <button
             type="button"
             onClick={() => switchMode('signup')}
-            className={`cursor-pointer rounded-lg py-2 text-sm font-semibold transition-all ${
+            className={`min-h-10 cursor-pointer rounded-md text-sm font-bold transition-all ${
               mode === 'signup'
-                ? 'bg-white text-slate-900 shadow-xs'
+                ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -146,13 +160,13 @@ export default function AuthPage() {
         </div>
 
         {successMsg && (
-          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+          <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
             {successMsg}
           </div>
         )}
 
         {errorMsg && (
-          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {errorMsg}
           </div>
         )}
@@ -160,7 +174,7 @@ export default function AuthPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'signup' && (
             <div>
-              <label htmlFor="auth-name" className="mb-1.5 block text-sm font-medium text-slate-700">
+              <label htmlFor="auth-name" className="mb-1.5 block text-sm font-bold text-slate-700">
                 이름
               </label>
               <input
@@ -170,30 +184,31 @@ export default function AuthPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="홍길동"
                 autoComplete="name"
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:text-sm"
               />
             </div>
           )}
 
           <div>
-            <label htmlFor="auth-email" className="mb-1.5 block text-sm font-medium text-slate-700">
+            <label htmlFor="auth-email" className="mb-1.5 block text-sm font-bold text-slate-700">
               이메일
             </label>
             <input
               id="auth-email"
               type="email"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@email.com"
               autoComplete="email"
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:text-sm"
             />
           </div>
 
           <div>
             <label
               htmlFor="auth-password"
-              className="mb-1.5 block text-sm font-medium text-slate-700"
+              className="mb-1.5 block text-sm font-bold text-slate-700"
             >
               비밀번호
             </label>
@@ -204,7 +219,7 @@ export default function AuthPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="비밀번호 입력"
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:text-sm"
             />
           </div>
 
@@ -212,7 +227,7 @@ export default function AuthPage() {
             <div>
               <label
                 htmlFor="auth-password-confirm"
-                className="mb-1.5 block text-sm font-medium text-slate-700"
+                className="mb-1.5 block text-sm font-bold text-slate-700"
               >
                 비밀번호 확인
               </label>
@@ -223,7 +238,7 @@ export default function AuthPage() {
                 onChange={(e) => setPasswordConfirm(e.target.value)}
                 placeholder="비밀번호 다시 입력"
                 autoComplete="new-password"
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:text-sm"
               />
             </div>
           )}
@@ -231,15 +246,18 @@ export default function AuthPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="mt-2 w-full cursor-pointer rounded-xl bg-orange-500 py-3 text-sm font-bold text-white shadow-xs transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-2 flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 text-sm font-bold text-white shadow-md transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSubmitting
-              ? mode === 'login'
-                ? '로그인 중...'
-                : '가입 처리 중...'
-              : mode === 'login'
-                ? '로그인'
-                : '회원가입 완료'}
+            {isSubmitting ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                {mode === 'login' ? '로그인 중...' : '가입 처리 중...'}
+              </>
+            ) : mode === 'login' ? (
+              '로그인'
+            ) : (
+              '회원가입 완료'
+            )}
           </button>
         </form>
       </div>
